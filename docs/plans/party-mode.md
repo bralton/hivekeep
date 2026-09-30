@@ -90,19 +90,32 @@ that no package re-derives them.
 
 ## Verification gate — every package, before the PR is opened
 
+Run **in the workspace**, every time:
+
 ```
 bun install --frozen-lockfile
-bun run typecheck
 bun run test
-bun run build
 bun scripts/check-locales.ts
 ```
 
-The first four are exactly what CI runs (`.github/workflows/ci.yml`). The fifth is not in CI
-and is required here because of decision 14. Run `bun run test`, never bare `bun test`: the
-sorted file order limits `mock.module` leakage (`.husky/pre-commit`). Paste the tail of each
-command's output in the PR under "How I verified it". Commits are conventional, no
-`Co-Authored-By`. Branch names follow the team rules: `forge/feat/party-mode-wp-a` and so on.
+Run **in CI**, by opening the PR: `bun run typecheck` and `bun run build`. CI runs them on
+every PR (`.github/workflows/ci.yml`); paste the CI run URL and its conclusion in the PR
+body. Do not run `bun run typecheck` or `bun run build` inside the workspace: the typecheck
+script asks for an 8 GB heap and the build for 6 GB, and on 2026-09-30 the first attempt
+killed the whole platform twice (an emptyDir eviction, then an OOM kill). `bun run test` is
+fine; run it with the npm script, never bare `bun test`, because the sorted file order limits
+`mock.module` leakage (`.husky/pre-commit`). If CI fails on typecheck or build, read the CI
+log, fix, push, and wait for CI again; a PR is not ready while CI is red.
+
+Repo hygiene in the workspace: clone with `--depth 50` (the plan needs recent history, not
+2,600 commits); only Forge runs `bun install`, and only once per workspace (`node_modules`
+persists on the volume); Scout, Overwatch and Bookkeep read the plan from a depth-1 clone or
+from the GitHub API and never install dependencies. Delete `node_modules` from a workspace
+you are finished with.
+
+Paste the tail of each workspace command's output in the PR under "How I verified it".
+Commits are conventional, no `Co-Authored-By`. Branch names follow the team rules:
+`forge/feat/party-mode-wp-a` and so on.
 
 ## The red pin
 
