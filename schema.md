@@ -429,13 +429,89 @@ Sessions éphémères pour interactions rapides.
 | `created_by` | text | FK → user.id, ON DELETE CASCADE, NOT NULL | |
 | `title` | text | | Titre de la session |
 | `status` | text | NOT NULL, DEFAULT 'active' | 'active' ou 'closed' |
+| `kind` | text | NOT NULL, DEFAULT 'quick' | 'quick', 'api' ou 'room' (voir ci-dessous) |
+| `room_id` | text | FK → rooms.id, ON DELETE CASCADE | Salon propriétaire quand `kind='room'`, sinon NULL |
 | `created_at` | integer | NOT NULL | |
 | `closed_at` | integer | | |
 | `expires_at` | integer | | |
 
+> **`kind='room'`** : le couloir d'un membre dans un salon. Pleine puissance comme `'api'`. L'historique d'un tour de salon vient de `room_messages`, jamais des `messages` de la session (qui ne sont que des copies de travail).
+
 **Index** :
 - `idx_quick_sessions_agent_status` sur (`agent_id`, `status`)
 - `idx_quick_sessions_user` sur `created_by`
+
+---
+
+### `rooms`
+
+Salon : une conversation nommée partagée par plusieurs Agents et l'utilisateur (mode fête, voir `docs/plans/party-mode.md`). Visible de son créateur et des admins.
+
+| Colonne | Type | Contraintes | Description |
+|---|---|---|---|
+| `id` | text PK | UUID | |
+| `name` | text | NOT NULL | |
+| `created_by` | text | FK → user.id, ON DELETE CASCADE, NOT NULL | |
+| `created_at` | integer | NOT NULL | |
+| `updated_at` | integer | NOT NULL | |
+
+---
+
+### `room_members`
+
+Membres d'un salon, dans l'ordre de parole. Une `quick_sessions` par membre et par salon, créée paresseusement au premier tour.
+
+| Colonne | Type | Contraintes | Description |
+|---|---|---|---|
+| `id` | text PK | UUID | |
+| `room_id` | text | FK → rooms.id, ON DELETE CASCADE, NOT NULL | |
+| `agent_id` | text | FK → agents.id, ON DELETE CASCADE, NOT NULL | |
+| `position` | integer | NOT NULL | Ordre de parole |
+| `session_id` | text | FK → quick_sessions.id, ON DELETE SET NULL | NULL jusqu'au premier tour du membre |
+
+**Index** :
+- `idx_room_members_room_agent` UNIQUE sur (`room_id`, `agent_id`)
+
+---
+
+### `room_messages`
+
+Transcription canonique d'un salon : chaque message utilisateur, réponse d'Agent et ligne système, dans l'ordre.
+
+| Colonne | Type | Contraintes | Description |
+|---|---|---|---|
+| `id` | text PK | UUID | |
+| `room_id` | text | FK → rooms.id, ON DELETE CASCADE, NOT NULL | |
+| `author_type` | text | NOT NULL | 'user', 'agent' ou 'system' |
+| `author_id` | text | | Id de l'utilisateur ou de l'Agent ; NULL pour 'system' |
+| `content` | text | NOT NULL | |
+| `message_id` | text | | `messages.id` du moteur pour une réponse d'Agent (réactions plus tard) |
+| `created_at` | integer | NOT NULL | |
+
+**Index** :
+- `idx_room_messages_room_created` sur (`room_id`, `created_at`)
+
+---
+
+### `room_turns`
+
+Un tour de parole d'un membre dans une ronde déclenchée par un message utilisateur. Les rondes sont strictement séquentielles : un seul tour `processing` par salon.
+
+| Colonne | Type | Contraintes | Description |
+|---|---|---|---|
+| `id` | text PK | UUID | |
+| `room_id` | text | FK → rooms.id, ON DELETE CASCADE, NOT NULL | |
+| `room_message_id` | text | FK → room_messages.id, ON DELETE CASCADE, NOT NULL | Le message utilisateur déclencheur |
+| `agent_id` | text | FK → agents.id, ON DELETE CASCADE, NOT NULL | |
+| `position` | integer | NOT NULL | Ordre dans la ronde |
+| `status` | text | NOT NULL, DEFAULT 'pending' | 'pending', 'processing', 'done' ou 'failed' |
+| `error` | text | | Raison de l'échec |
+| `created_at` | integer | NOT NULL | |
+| `started_at` | integer | | |
+| `ended_at` | integer | | |
+
+**Index** :
+- `idx_room_turns_room_status_created` sur (`room_id`, `status`, `created_at`)
 
 ---
 

@@ -117,6 +117,11 @@ export const fullMockConfig = {
     maxRetryDelayMs: 60_000,
   },
 
+  rooms: {
+    historyMaxMessages: 200,
+    maxMembers: 8,
+  },
+
   quickSessions: {
     defaultExpirationHours: 24,
     maxActivePerUserPerAgent: 1,
@@ -227,6 +232,10 @@ export const fullMockSchema = {
   contactNicknames: {},
   customTools: {},
   quickSessions: {},
+  rooms: {},
+  roomMembers: {},
+  roomMessages: {},
+  roomTurns: {},
   tasks: {},
   crons: {},
   webhooks: {},

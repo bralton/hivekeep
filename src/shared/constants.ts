@@ -79,6 +79,9 @@ export const CONTRAST_MODES = ['normal', 'soft'] as const
 /** Maximum length (in characters) for a user message. Enforced server-side. */
 export const MAX_MESSAGE_LENGTH = 32_000
 
+/** Maximum number of member Agents in one room. Default for `config.rooms.maxMembers`. */
+export const ROOM_MAX_MEMBERS = 8
+
 /** Minimum item count before a settings list shows its search/filter bar.
  *  1 = show it whenever the list is non-empty (the bar is hidden only on the
  *  empty state, where the EmptyState takes over). Used by list screens
