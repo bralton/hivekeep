@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { join, resolve } from 'path'
 import os from 'os'
 import { parseModelEnv } from '@/shared/model-ref'
+import { ROOM_MAX_MEMBERS } from '@/shared/constants'
 
 const dataDir = process.env.HIVEKEEP_DATA_DIR ?? './data'
 
@@ -636,6 +637,12 @@ export const config = {
     maxActivePerUserPerAgent: Number(process.env.QUICK_SESSION_MAX_PER_USER_KIN ?? 1),
     retentionDays: Number(process.env.QUICK_SESSION_RETENTION_DAYS ?? 7),
     cleanupIntervalMinutes: Number(process.env.QUICK_SESSION_CLEANUP_INTERVAL ?? 60),
+  },
+
+  rooms: {
+    /** A room turn reads at most this many of the latest room_messages as history. */
+    historyMaxMessages: Number(process.env.ROOMS_HISTORY_MAX_MESSAGES ?? 200),
+    maxMembers: Number(process.env.ROOMS_MAX_MEMBERS ?? ROOM_MAX_MEMBERS),
   },
 
   webBrowsing: {

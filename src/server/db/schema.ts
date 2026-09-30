@@ -1,5 +1,5 @@
 import { sqliteTable, text, integer, real, blob, primaryKey, uniqueIndex, index, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
-import type { AgentKind } from '@/shared/types'
+import type { AgentKind, RoomMessageAuthorType, RoomTurnStatus } from '@/shared/types'
 
 // ─── Better Auth tables ────────────────────────────────────────────────────────
 // These tables are managed by Better Auth. Defined here for Drizzle relations
@@ -368,6 +368,18 @@ export const customTools = sqliteTable('custom_tools', {
   uniqueIndex('idx_custom_tools_slug').on(table.slug),
 ])
 
+/**
+ * A room: one named conversation shared by several Agents and the user. The
+ * room transcript (`room_messages`) is canonical; see docs/plans/party-mode.md.
+ */
+export const rooms = sqliteTable('rooms', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  createdBy: text('created_by').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
 export const quickSessions = sqliteTable('quick_sessions', {
   id: text('id').primaryKey(),
   agentId: text('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
@@ -376,8 +388,12 @@ export const quickSessions = sqliteTable('quick_sessions', {
   status: text('status').notNull().default('active'), // 'active' | 'closed'
   /** 'quick' = the ephemeral quick-chat UI session (minimal capability profile).
    *  'api' = an external-API isolated conversation (full capability profile,
-   *  exempt from the idle GC; lifecycle owned by api_conversations). */
+   *  exempt from the idle GC; lifecycle owned by api_conversations).
+   *  'room' = one member's lane in a room (full capability profile; history
+   *  comes from room_messages, not from this session's own messages). */
   kind: text('kind').notNull().default('quick'),
+  /** Owning room when kind = 'room', else null. */
+  roomId: text('room_id').references(() => rooms.id, { onDelete: 'cascade' }),
   /** Per-session LLM override (null = inherit the agent's model) — lets the
    *  user try another model in an ephemeral session without touching the
    *  agent's configuration (the whole point of quick sessions). */
@@ -392,6 +408,50 @@ export const quickSessions = sqliteTable('quick_sessions', {
 }, (table) => [
   index('idx_quick_sessions_agent_status').on(table.agentId, table.status),
   index('idx_quick_sessions_user').on(table.createdBy),
+])
+
+/** Members of a room, in speaking order. One quick session per member per room,
+ *  created lazily on the member's first turn. */
+export const roomMembers = sqliteTable('room_members', {
+  id: text('id').primaryKey(),
+  roomId: text('room_id').notNull().references(() => rooms.id, { onDelete: 'cascade' }),
+  agentId: text('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull(),
+  sessionId: text('session_id').references(() => quickSessions.id, { onDelete: 'set null' }),
+}, (table) => [
+  uniqueIndex('idx_room_members_room_agent').on(table.roomId, table.agentId),
+])
+
+/** The canonical room transcript: every user post, agent reply and system line. */
+export const roomMessages = sqliteTable('room_messages', {
+  id: text('id').primaryKey(),
+  roomId: text('room_id').notNull().references(() => rooms.id, { onDelete: 'cascade' }),
+  authorType: text('author_type').$type<RoomMessageAuthorType>().notNull(), // 'user' | 'agent' | 'system'
+  /** User id or agent id; null for system lines. */
+  authorId: text('author_id'),
+  content: text('content').notNull(),
+  /** The engine's messages.id for an agent reply (reactions later); null otherwise. */
+  messageId: text('message_id'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  index('idx_room_messages_room_created').on(table.roomId, table.createdAt),
+])
+
+/** One member's turn in a round triggered by a user post. Rounds run strictly in sequence. */
+export const roomTurns = sqliteTable('room_turns', {
+  id: text('id').primaryKey(),
+  roomId: text('room_id').notNull().references(() => rooms.id, { onDelete: 'cascade' }),
+  /** The triggering user post. */
+  roomMessageId: text('room_message_id').notNull().references(() => roomMessages.id, { onDelete: 'cascade' }),
+  agentId: text('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull(),
+  status: text('status').$type<RoomTurnStatus>().notNull().default('pending'), // 'pending' | 'processing' | 'done' | 'failed'
+  error: text('error'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  startedAt: integer('started_at', { mode: 'timestamp_ms' }),
+  endedAt: integer('ended_at', { mode: 'timestamp_ms' }),
+}, (table) => [
+  index('idx_room_turns_room_status_created').on(table.roomId, table.status, table.createdAt),
 ])
 
 /**

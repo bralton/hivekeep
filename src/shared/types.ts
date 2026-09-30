@@ -1211,3 +1211,57 @@ export interface TerminalPresetDTO {
   createdAt: number
   updatedAt: number
 }
+
+// ─── Rooms (party mode) ──────────────────────────────────────────────────────
+
+/** Who wrote a room transcript line. `system` lines (e.g. "X could not reply") have no author id. */
+export type RoomMessageAuthorType = 'user' | 'agent' | 'system'
+
+/** Lifecycle of one member's turn in a room round. */
+export type RoomTurnStatus = 'pending' | 'processing' | 'done' | 'failed'
+
+/** A room: one named conversation shared by several Agents and the user. */
+export interface Room {
+  id: string
+  name: string
+  createdBy: string
+  createdAt: number
+  updatedAt: number
+}
+
+/** A member of a room. `position` is the speaking order; `sessionId` is null until the member's first turn. */
+export interface RoomMember {
+  id: string
+  roomId: string
+  agentId: string
+  position: number
+  sessionId: string | null
+}
+
+/** One line of the canonical room transcript. */
+export interface RoomMessage {
+  id: string
+  roomId: string
+  authorType: RoomMessageAuthorType
+  /** User id or Agent id; null for system lines. */
+  authorId: string | null
+  content: string
+  /** The engine's messages.id for an Agent reply; null otherwise. */
+  messageId: string | null
+  createdAt: number
+}
+
+/** One member's turn in a round triggered by a user post. */
+export interface RoomTurn {
+  id: string
+  roomId: string
+  /** The triggering user post. */
+  roomMessageId: string
+  agentId: string
+  position: number
+  status: RoomTurnStatus
+  error: string | null
+  createdAt: number
+  startedAt: number | null
+  endedAt: number | null
+}
